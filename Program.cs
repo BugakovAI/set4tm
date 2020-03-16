@@ -136,8 +136,7 @@ namespace ComPort
             float value = BitConverter.ToSingle(byteValue,0);
             Console.WriteLine($"\nТекущее значение напряжения на фазе А = {value}");
 
-            Console.WriteLine("Для завершения нажмите любую клавишу ...");
-            Console.WriteLine("Для завершения нажмите любую клавишу ...");
+            Console.WriteLine("Для выхода нажмите любую клавишу ...");
             Console.ReadKey();
 
             COM.Close();
