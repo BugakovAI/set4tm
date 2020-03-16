@@ -137,6 +137,7 @@ namespace ComPort
             Console.WriteLine($"\nТекущее значение напряжения на фазе А = {value}");
 
             Console.WriteLine("Для завершения нажмите любую клавишу ...");
+            Console.WriteLine("Для завершения нажмите любую клавишу ...");
             Console.ReadKey();
 
             COM.Close();
