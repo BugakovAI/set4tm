@@ -1,0 +1,100 @@
+﻿using System;
+using System.IO;
+using System.IO.Ports;
+using System.Text;
+
+namespace ComPort
+{
+    class Program
+    {
+        static void Main(string[] args)
+        {
+            SerialPort port = new SerialPort();
+            string[] ports = SerialPort.GetPortNames();
+            
+            Console.WriteLine("Выберите нужный COM-порт из списка:");
+            foreach(string i in ports)
+            {
+                Console.WriteLine($"[{Array.IndexOf(ports,i)}] {i}");
+            }
+
+            int n = Convert.ToInt32(Console.ReadLine());
+            Console.WriteLine(ports[n]);
+
+            try
+            {
+                port.PortName = "COM11";
+                // port.PortName = ports[n];
+                port.BaudRate = 19700;
+                port.DataBits = 8;
+                port.Parity = System.IO.Ports.Parity.None;
+                port.StopBits = System.IO.Ports.StopBits.One;
+                port.ReadTimeout = 1000;
+                port.WriteTimeout = 1000;
+                port.Open();
+            }
+            catch (System.Exception e )
+            {
+                Console.WriteLine($"ERROR: невозможно открыть порт: {e}");
+                return;
+            }
+            
+            SerialPort port2 = new SerialPort();
+            try
+            {
+                port2.PortName = "COM10";
+                port2.BaudRate = 19700;
+                port2.Parity = System.IO.Ports.Parity.None;
+                port2.DataBits = 8;
+                port2.StopBits = System.IO.Ports.StopBits.One;
+                
+                port2.ReadTimeout = 1000;
+                port2.WriteTimeout = 1000;
+                port2.Open();
+            }
+            catch (System.Exception e )
+            {
+                Console.WriteLine($"ERROR: невозможно открыть порт: {e}");
+                return;
+            }
+
+            byte[] message = Encoding.Default.GetBytes("Hello from COM10 to COM11!");
+            port.Write (message, 0, message.Length);
+            byte[] answer = new byte[(int)port2.BytesToRead];
+            if (port2.BytesToRead > 0)
+            {
+                port2.Read(answer, 0, port2.BytesToRead);
+            }
+            System.Threading.Thread.Sleep(2000);
+            Console.WriteLine("Прочёл с COM порта: " + Encoding.Default.GetString(answer));
+
+            port.Close ();
+            port2.Close ();
+
+            // Console.WriteLine("Прочитал с 10 порта: ");
+            // for (int i = 0; i < answer.Length; i++)
+            // {
+            //     Console.WriteLine(Convert.ToString(answer[i]));
+            // } 
+        }
+    }
+    
+    public class Reader
+    {
+        public void SayHello()
+        {
+            {
+            Console.WriteLine("Port");      
+            }
+      
+        }
+    }
+    
+    public class Writer
+    {
+        public void Ask() 
+        {
+            Console.WriteLine("How are you?");            
+        }
+    }
+}
