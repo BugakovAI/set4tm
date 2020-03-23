@@ -45,54 +45,30 @@ namespace set4tm_console
                 Console.WriteLine($"\nПорт {port.PortName} закрылся!");
         }
 
-        public bool OpenChannel(byte id)  //метод записи в порт
+        public bool OpenChannel(byte id)  //метод открытия канала связи со счётчиком
         {
             byte[] req = new byte[8] { id, 0x01, 0x30, 0x30, 0x30, 0x30, 0x30, 0x30 };//запрос на открытие канала связи, где 1ый байт - код функции, 2-7 байты - пароль "000000" в ASCII, 8,9 - CRC.
-            try
-            {
-                port.Write(AddCRC16(req), 0, req.Length+2);
-                Log("Запрос записан в порт");
-            }
-            catch (System.Exception e)
-            {
-                Console.WriteLine($"ERROR: невозможно произвести запись в порт: {e}");
-                return false;
-            }
-            System.Threading.Thread.Sleep(50);
-
-            byte[] answ = new byte[] { id, 0x00 };       //тело ответа для вычисления корректного CRC
-            byte[] answcrc = AddCRC16(answ);            //получаем ответ вместе с корректным CRC
-
-            if ((int)port.BytesToRead > 0)
-            {
-                byte[] answer = new byte[(int)port.BytesToRead];
-                port.Read(answer, 0, port.BytesToRead);
-                if (answer.SequenceEqual(answcrc))
-                {
-                    Log($"Канал связи счёчтчика {id} открыт!");
-                    return true;
-                }
-                else return false;
-            }
+            byte[] res = GetData(req);
+            if (res[0] == 0x00)
+                return true;
             else return false;
         }
-        public DateTime ReadTime(byte id)  //метод чтения ЭНЕРГИИ
+
+        public (DateTime, DateTime) ReadJ(byte id, int param, byte row = 0) // метод чтения журналов. param = 0 - Time, 1 - OnOff, 2 - Cap; row = 1-9 от первой к последней записи в журнале
         {
-            byte[] request = { id, 0x04, 0x00 };
-            byte[] response = GetData(request);
-            int[] intResponse = new int[response.Length];
-            int j = 0;
-            foreach (byte i in response)
+            DateTime dateOff = new DateTime();
+            DateTime dateOn = new DateTime();
+            byte rwri = 0x00;
+            switch (param)
             {
-                intResponse[Array.IndexOf(response, i)] = Convert.ToInt32(i.ToString("X")); //переписываем байтовый массив в интовый через строку
-                j++;
+                case 0:
+                    rwri = 0x00; break;
+                case 1:
+                    rwri = (byte)(0x10 + row); break;
+                case 2:
+                    rwri = (byte)(0xA0 + row); break;
             }
-            DateTime date = new DateTime(2000 + intResponse[6], intResponse[5], intResponse[4], intResponse[2], intResponse[1], intResponse[0]);
-            return date;
-        }
-        public (DateTime, DateTime) ReadOnOff(byte id)  //метод чтения мгновенных значений доп ПАРАМЕТРОВ (U,I,P и т.д.)
-        {
-            byte[] request = { id, 0x04, 0x11}; // 19 это два полубайта 1 и 9, 1 - журнал вкл//выкл, 9 - номер записи.
+            byte[] request = { id, 0x04, rwri }; // 19 это два полубайта 1 и 9, 1 - журнал вкл//выкл, 9 - номер записи от 0(сатарая) до 9(новая)
             byte[] response = GetData(request);
             int[] intResponse = new int[response.Length];
             int j = 0;
@@ -101,55 +77,100 @@ namespace set4tm_console
                 intResponse[j] = Convert.ToInt32(i.ToString("X")); //переписываем байтовый массив в интовый через строку
                 j++;
             }
-            DateTime dateOn = new DateTime(2000 + intResponse[6], intResponse[5], intResponse[4], intResponse[2], intResponse[1], intResponse[0]);
-            DateTime dateOff = new DateTime(2000 + intResponse[13], intResponse[12], intResponse[11], intResponse[9], intResponse[8], intResponse[7]);
-            return (dateOn, dateOff);
-        }
-        public (DateTime, DateTime) ReadCap(byte id)  //метод чтения времени открытия крышки
-        {
-            byte[] request = { id, 0x04, 0xA2 }; // 19 это два полубайта 1 и 9, 1 - журнал вкл//выкл, 9 - номер записи.
-            byte[] response = GetData(request);
-            int[] intResponse = new int[response.Length];
-            int j = 0;
-            foreach (byte i in response)
+            dateOn = new DateTime(2000 + intResponse[6], intResponse[5], intResponse[4], intResponse[2], intResponse[1], intResponse[0]);
+            if (intResponse.Length>8)
             {
-                intResponse[j] = Convert.ToInt32(i.ToString("X")); //переписываем байтовый массив в интовый через строку
-                j++;
+                dateOff = new DateTime(2000 + intResponse[13], intResponse[12], intResponse[11], intResponse[9], intResponse[8], intResponse[7]);
             }
-            DateTime dateOn = new DateTime(2000 + intResponse[6], intResponse[5], intResponse[4], intResponse[2], intResponse[1], intResponse[0]);
-            DateTime dateOff = new DateTime(2000 + intResponse[13], intResponse[12], intResponse[11], intResponse[9], intResponse[8], intResponse[7]);
+
             return (dateOn, dateOff);
         }
 
-        //byte req = 0x08;        // код запроса 08 - чтение праметров и данных 
-        //byte param = 0x1B;      // код параметра 1В - чтение данных в формате float
-        //byte dataArray = 0x00;  // код массива данных 00 - данные вспомогательных режимов измерения (RWRI) (по таблице 2-45)
-        //byte rwri = 0x11;       // код вспомогательного режима измерения (RWRI) 11 - напряжение фазное по фазе 1 (по таблице 2-38)
-
-        public float ReadU(byte id, int phase)  //метод чтения напряжения
+        public float ReadP(byte id, int param, int type = 0x00, int phase = 0x00) // метод чтения параметров/
         {
-            byte ph = 0x11;
-            switch(phase)
+            byte rwri = 0x00;
+            switch (param)  // 1 - PQS; 2 - Uф, Uл, U1; 3 - I; 4 - cos; 5 - f; 5 6 - t.
             {
                 case 1:
-                    ph = 0x11;
-                    break;
+                    switch (type) 
+                    {
+                        case 1:
+                            switch (phase)
+                            {
+                                case 0: rwri = 0x00; break;
+                                case 1: rwri = 0x01; break;
+                                case 2: rwri = 0x02; break;
+                                case 3: rwri = 0x03; break;
+                            }
+                            break;
+                        case 2:
+                            switch (phase)
+                            {
+                                case 0: rwri = 0x04; break;
+                                case 1: rwri = 0x05; break;
+                                case 2: rwri = 0x06; break;
+                                case 3: rwri = 0x07; break;
+                            }
+                            break;
+                        case 3:
+                            switch (phase)
+                            {
+                                case 0: rwri = 0x08; break;
+                                case 1: rwri = 0x09; break;
+                                case 2: rwri = 0xA; break;
+                                case 3: rwri = 0xB; break;
+                            }
+                            break;
+                    } break; // 1 - активная, 2 - реактивная, 3 - полная
                 case 2:
-                    ph = 0x12;
-                    break;
+                    switch (type) 
+                    {
+                        case 1:
+                            switch (phase)  // 1, 2, 3 - фазы A, B, C
+                            {
+                                case 1: rwri = 0x11; break;
+                                case 2: rwri = 0x12; break;
+                                case 3: rwri = 0x13; break;
+                            }
+                            break;
+                        case 2:
+                            switch (phase)  // 1 - AB, 2 - BC, 3 - CA 
+                            {
+                                case 1: rwri = 0x15; break;
+                                case 2: rwri = 0x16; break;
+                                case 3: rwri = 0x17; break;
+                            }
+                            break;
+                        case 3: rwri = 0x18; break;
+                    } break; // 1 - фазное, 2 - межфазное, 3 - нулевой последовательности
                 case 3:
-                    ph = 0x13;
+                    switch (phase)
+                    {
+                        case 1: rwri = 0x21; break;
+                        case 2: rwri = 0x22; break;
+                        case 3: rwri = 0x23; break;
+                    } break;
+                case 4:
+                    switch (phase)
+                    {
+                        case 0: rwri = 0x30; break;
+                        case 1: rwri = 0x31; break;
+                        case 2: rwri = 0x32; break;
+                        case 3: rwri = 0x33; break;
+                    }
                     break;
+                case 5:
+                    rwri = 0x40; break;
+                case 6:
+                    rwri = 0x70; break;
             }
-            byte[] request = { id, 0x08, 0x1B, 0x00, ph};
+            byte[] request = { id, 0x08, 0x1B, 0x00, rwri };
             byte[] response = GetData(request);
             return BitConverter.ToSingle(response, 0);
         }
-
-
-        public byte[] GetData(byte[] request)  //метод записи в порт и чтения ответа. В качестве ответа возрващает массив байт без айди и црц
+        
+        public byte[] GetData(byte[] request)  // метод записи в порт и чтения ответа. В качестве ответа возрващает массив байт без айди и црц
         {
-            //System.Threading.Thread.Sleep(20);
             try
             {
                 port.Write(AddCRC16(request), 0, request.Length + 2);
@@ -162,7 +183,7 @@ namespace set4tm_console
                 return null;
             }
 
-            System.Threading.Thread.Sleep(150);
+            System.Threading.Thread.Sleep(100);
 
             if ((int)port.BytesToRead > 0)
             {
@@ -185,7 +206,8 @@ namespace set4tm_console
             }
 
         }
-        public byte[] AddCRC16(byte[] Message)
+        
+        public byte[] AddCRC16(byte[] Message) // метод добавляет к запросу два байта CRC16
         {
             byte[] CRC = new byte[2];
             ushort Register = 0xFFFF;                       // создаем регистр, в котором будем сохранять высчитанный CRC
@@ -202,7 +224,7 @@ namespace set4tm_console
                     }
                     else                                    //если старший бит равен 0 то
                     {
-                        Register = (ushort)(Register >> 1);     // сдвигаем регистр вправо
+                        Register = (ushort)(Register >> 1); // сдвигаем регистр вправо
                     }
                 }
             }
@@ -210,13 +232,14 @@ namespace set4tm_console
             CRC[1] = (byte)(Register >> 8);         // присваеваем старший байт полученного регистра младшему байту результата CRC (CRClow)
             CRC[0] = (byte)(Register & 0x00FF);     // присваеваем младший байт полученного регистра старшему байту результата CRC (CRCHi) это условность Modbus — обмен байтов местами.
 
-            byte[] request = new byte[Message.Length + 2];            //cоздаём массив для запроса + CRC 
-            Array.Copy(Message, 0, request, 0, Message.Length);       //копируем из req в send
-            Array.Copy(CRC, 0, request, Message.Length, 2);           //копируем из crc в send
+            byte[] request = new byte[Message.Length + 2];      //cоздаём массив для запроса + CRC 
+            Array.Copy(Message, 0, request, 0, Message.Length); //копируем из req в send
+            Array.Copy(CRC, 0, request, Message.Length, 2);     //копируем из crc в send
             
             return request;
         }
-        public static void Log(string message)
+        
+        public static void Log(string message) // метод для записи логов в текстовый файл в корне проекта
         {
             string writePath = @"D:\Dev\set4tm\set4tm-console\log.txt";
             try
