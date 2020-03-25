@@ -78,7 +78,7 @@ namespace set4tm_console
                 j++;
             }
             dateOn = new DateTime(2000 + intResponse[6], intResponse[5], intResponse[4], intResponse[2], intResponse[1], intResponse[0]);
-            if (intResponse.Length>8)
+            if (intResponse.Length>8) // если в ответе 8 байт, то это ответ на запрос текущего времени, в остальных случаях читатется журнал, а значит возвращается две даты.
             {
                 dateOff = new DateTime(2000 + intResponse[13], intResponse[12], intResponse[11], intResponse[9], intResponse[8], intResponse[7]);
             }
@@ -165,10 +165,43 @@ namespace set4tm_console
                     rwri = 0x70; break;
             }
             byte[] request = { id, 0x08, 0x1B, 0x00, rwri };
-            byte[] response = GetData(request);
-            return BitConverter.ToSingle(response, 0);
+            return BitConverter.ToSingle(GetData(request), 0);
         }
-        
+
+        public (float, float, float, float) ReadE(byte id, int type, byte num = 0x00, byte tar = 0x00) // метод чтения массивов энергии type (1-от сброса,2-месячный,3-суточный)
+        {
+            byte typeNum = 0x00;
+            byte tarif = 0x00;
+            byte[] response = new byte[16];
+
+            if (type == 1 || type == 2)
+            {
+                switch (type)
+                {
+                    case 1: typeNum = 0x00; break;
+                    case 2: 
+                        typeNum = (byte)(0x30 + num);
+                        tarif = tar; 
+                        break;
+                }
+                byte[] request = { id, 0x05, typeNum, tarif };
+                response = GetData(request);
+            }
+            else if (type == 3)
+            {
+                byte mask = 0x0F; //это значит что в ответ будут включены 4 типа энергии
+                byte format = 0x00;
+                byte[] request = { id, 0x0A, 0x06, num, tar, mask, format };
+                response = GetData(request);
+            }           
+            byte[] Ad = new byte[4]; Array.Copy(response, 0, Ad, 0, 4); // Active direct
+            byte[] Ar = new byte[4]; Array.Copy(response, 4, Ad, 0, 4); // Active reverse
+            byte[] Rd = new byte[4]; Array.Copy(response, 8, Ad, 0, 4); // Reactive direct
+            byte[] Rr = new byte[4]; Array.Copy(response, 12, Ad, 0, 4); // Reactive reverse
+            return (BitConverter.ToSingle(Ad, 0), BitConverter.ToSingle(Ar, 0), BitConverter.ToSingle(Rd, 0), BitConverter.ToSingle(Rr, 0));
+        }
+            
+
         public byte[] GetData(byte[] request)  // метод записи в порт и чтения ответа. В качестве ответа возрващает массив байт без айди и црц
         {
             try

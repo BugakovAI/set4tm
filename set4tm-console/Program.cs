@@ -43,8 +43,15 @@ namespace set4tm_console
                         Console.WriteLine($"\nВремя последнего открытия крышки:       {Cap.Item1}");
                         Console.WriteLine($"Время последнего закрытия крышки:       {Cap.Item2}");
 
-                        float P = COM8.ReadP(id, 1, 1, 0);
-                        Console.WriteLine($"\nАктивная мощность P по сумме фаз:   {Math.Round(P, 2)} (кВт)");
+                        var Esbros = COM8.ReadE(id, 1);
+                        Console.WriteLine($"" +
+                            $"\nЭнергия активная прямая накопленная с момента сброса по сумме тарифов:   {Esbros.Item1*1000000} (кВт*ч)" +
+                            $"\nЭнергия активная обратная накопленная с момента сброса по сумме тарифов:   {Esbros.Item2} (кВт*ч)" +
+                            $"\nЭнергия реактивная прямая накопленная с момента сброса по сумме тарифов:   {Esbros.Item3} (кВт*ч)");
+                        Console.WriteLine($"Энергия накопленная за прошлый месяц по сумме тарифов:      {COM8.ReadE(id, 2, 1, 0)} (кВт*ч)");
+                        Console.WriteLine($"Энергия накопленная за позапрошлые сутки по сумме тарифов:      {COM8.ReadE(id, 2, 2, 0)} (кВт*ч)");
+
+                        Console.WriteLine($"\nАктивная мощность P по сумме фаз:   {Math.Round(COM8.ReadP(id, 1, 1, 0), 2)} (кВт)");
                         Console.WriteLine($"Активная мощность P по фазе A:      {COM8.ReadP(id, 1, 1, 1)} (кВт)");
                         Console.WriteLine($"Активная мощность P по фазе B:      {COM8.ReadP(id, 1, 1, 2)} (кВт)");
                         Console.WriteLine($"Активная мощность P по фазе C:      {COM8.ReadP(id, 1, 1, 3)} (кВт)");
@@ -59,25 +66,21 @@ namespace set4tm_console
                         Console.WriteLine($"Полная мощность S по фазе B:    {COM8.ReadP(id, 1, 3, 2)} (кВт)");
                         Console.WriteLine($"Полная мощность S по фазе C:    {COM8.ReadP(id, 1, 3, 3)} (кВт)");
 
-                        float U = COM8.ReadP(id, 2, 1, 1);
-                        Console.WriteLine($"\nНапряжение по фазе А:   {Math.Round(U, 2)} (В)");
+                        Console.WriteLine($"\nНапряжение по фазе А:   {Math.Round(COM8.ReadP(id, 2, 1, 1), 2)} (В)");
                         Console.WriteLine($"Напряжение по фазе B:   {Math.Round(COM8.ReadP(id, 2, 1, 2), 2)} (В)");
                         Console.WriteLine($"Напряжение по фазе C:   {Math.Round(COM8.ReadP(id, 2, 1, 3), 2)} (В)");
 
-                        U = COM8.ReadP(id, 2, 2, 1);
-                        Console.WriteLine($"\nМежфазное напряжение АB:    {U} (В)");
+                        Console.WriteLine($"\nМежфазное напряжение АB:    {COM8.ReadP(id, 2, 2, 1)} (В)");
                         Console.WriteLine($"Межфазное напряжение BC:    {COM8.ReadP(id, 2, 2, 2)} (В)");
                         Console.WriteLine($"Межфазное напряжение CА:    {COM8.ReadP(id, 2, 2, 3)} (В)");
 
                         Console.WriteLine($"\nНапряжение нулевой последовательности: {COM8.ReadP(id, 2, 3)} (В)");
 
-                        float I = COM8.ReadP(id, 3, 1);
-                        Console.WriteLine($"\nТок по фазе А:  {I} (A)");
+                        Console.WriteLine($"\nТок по фазе А:  {COM8.ReadP(id, 3, 1)} (A)");
                         Console.WriteLine($"Ток по фазе B:  {COM8.ReadP(id, 3, 2)} (A)");
                         Console.WriteLine($"Ток по фазе C:  {COM8.ReadP(id, 3, 3)} (A)");
 
-                        float cos = COM8.ReadP(id, 4, 0);
-                        Console.WriteLine($"\nCOS(f) по сумме фаз: {Math.Round(cos, 2)}");
+                        Console.WriteLine($"\nCOS(f) по сумме фаз: {Math.Round(COM8.ReadP(id, 4, 0), 2)}");
                         Console.WriteLine($"COS(f) по фазе A:   {Math.Round(COM8.ReadP(id, 4, 1), 2)}");
                         Console.WriteLine($"COS(f) по фазе B:   {Math.Round(COM8.ReadP(id, 4, 2), 2)}");
                         Console.WriteLine($"COS(f) по фазе C:   {Math.Round(COM8.ReadP(id, 4, 3), 2)}");
