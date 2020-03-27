@@ -6,6 +6,8 @@ using System.IO.Ports;
 using System.Linq;
 
 
+
+
 namespace set4tm_console
 {
     public class ComControl
@@ -178,7 +180,7 @@ namespace set4tm_console
             {
                 switch (type)
                 {
-                    case 1: typeNum = 0x00; break;
+                    case 1: break;
                     case 2: 
                         typeNum = (byte)(0x30 + num);
                         tarif = tar; 
@@ -192,13 +194,23 @@ namespace set4tm_console
                 byte mask = 0x0F; //это значит что в ответ будут включены 4 типа энергии
                 byte format = 0x00;
                 byte[] request = { id, 0x0A, 0x06, num, tar, mask, format };
-                response = GetData(request);
-            }           
-            byte[] Ad = new byte[4]; Array.Copy(response, 0, Ad, 0, 4); // Active direct
-            byte[] Ar = new byte[4]; Array.Copy(response, 4, Ad, 0, 4); // Active reverse
-            byte[] Rd = new byte[4]; Array.Copy(response, 8, Ad, 0, 4); // Reactive direct
-            byte[] Rr = new byte[4]; Array.Copy(response, 12, Ad, 0, 4); // Reactive reverse
-            return (BitConverter.ToSingle(Ad, 0), BitConverter.ToSingle(Ar, 0), BitConverter.ToSingle(Rd, 0), BitConverter.ToSingle(Rr, 0));
+                response = GetData(request); 
+            }
+            
+            byte[] reverse = new byte[16];
+            int j = 15;
+            for (int i = 0; i < response.Length; i++)
+            {
+                reverse[i] = response[j];
+                j--;
+            }
+            
+            float Ad = (BitConverter.ToInt32(reverse, 0)) / 10000f;     // Active direct
+            float Ar = (BitConverter.ToInt32(reverse, 4)) / 10000f;     // Active reverse
+            float Rd = (BitConverter.ToInt32(reverse, 8)) / 10000f;     // Reactive direct
+            float Rr = (BitConverter.ToInt32(reverse, 12))/ 10000f;     // Reactive reverse
+
+            return (Ad, Ar, Rd, Rr);
         }
             
 
